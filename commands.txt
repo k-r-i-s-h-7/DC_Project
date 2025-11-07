@@ -1,0 +1,15 @@
+docker-compose up -d
+
+docker exec -it hadoop-single-node
+hdfs dfs -mkdir -p /user/travel/feedback
+hdfs dfs -put -f /tmp/ingest/feedback_*.json /user/travel/feedback/
+hdfs dfs -ls /user/travel/feedback/
+
+hadoop jar /hadoop-2.8.2/share/hadoop/tools/lib/hadoop-streaming-2.8.2.jar \
+  -files /tmp/ingest/feedback_descriptive.py \
+  -mapper "python feedback_descriptive.py" \
+  -reducer "python feedback_descriptive.py reduce" \
+  -input /user/travel/feedback/*.json \
+  -output /user/travel/output
+
+hdfs dfs -cat /user/travel/output/part-00000

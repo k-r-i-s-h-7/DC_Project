@@ -1,0 +1,41 @@
+{
+    "user_id": "user_262",
+    "location": "Mumbai",
+    "itinerary": [
+        {
+            "id": 16,
+            "name": "Skyline Suites",
+            "city": "Mumbai",
+            "rating": 4.6,
+            "info": "Modern comfort downtown",
+            "type": "hotels"
+        },
+        {
+            "id": 17,
+            "name": "Bollywood Tour",
+            "city": "Mumbai",
+            "rating": 4.7,
+            "info": "Behind-the-scenes experience",
+            "type": "events"
+        },
+        {
+            "id": 19,
+            "name": "Marine Masala",
+            "city": "Mumbai",
+            "rating": 4.6,
+            "info": "Best tandoori with ocean breeze",
+            "type": "restaurants"
+        },
+        {
+            "id": 17,
+            "name": "SeaLink Taxi",
+            "city": "Mumbai",
+            "rating": 4.4,
+            "info": "Coastal express rides",
+            "type": "transport"
+        }
+    ],
+    "rating": 4.7,
+    "comment": "Fantastic trip!",
+    "timestamp": "2025-10-21T16:41:07.559335"
+}

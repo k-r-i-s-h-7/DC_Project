@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  hadoop:
+    image: harisekhon/hadoop:latest
+    container_name: hadoop-single-node
+    ports:
+    
+      - "9870:9870"
+      - "9864:9864"
+      - "8088:8088"
+      - "19888:19888"
+    volumes:
+      - ./hadoop_ingest:/tmp/ingest
+      - ./mapreduce:/tmp/mapreduce
+    environment:
+      - HADOOP_HEAPSIZE=512
+    networks:
+      - monitor
+
+  coordinator1:
+    build: ./coordinator
+    container_name: coordinator1
+    environment:
+      - FLASK_ENV=development
+      - COORDINATOR_ID=1
+    volumes:
+      - ./coordinator:/app
+      - ./hadoop_ingest:/app/hadoop_ingest
+      - ./mapreduce:/app/mapreduce
+      - ./travel.db:/app/travel.db
+    networks:
+      - monitor
+
+  coordinator2:
+    build: ./coordinator
+    container_name: coordinator2
+    environment:
+      - FLASK_ENV=development
+      - COORDINATOR_ID=2
+    volumes:
+      - ./coordinator:/app
+      - ./hadoop_ingest:/app/hadoop_ingest
+      - ./mapreduce:/app/mapreduce
+      - ./travel.db:/app/travel.db
+    networks:
+      - monitor
+
+  coordinator3:
+    build: ./coordinator
+    container_name: coordinator3
+    environment:
+      - FLASK_ENV=development
+      - COORDINATOR_ID=3
+    volumes:
+      - ./coordinator:/app
+      - ./hadoop_ingest:/app/hadoop_ingest
+      - ./mapreduce:/app/mapreduce
+      - ./travel.db:/app/travel.db
+    networks:
+      - monitor
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-coordinator
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - coordinator1
+      - coordinator2
+      - coordinator3
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge

@@ -1,0 +1,47 @@
+{
+    "user_id": "506e6372-8d44-4011-9885-58e7f396be66",
+    "location": "Jaipur",
+    "itinerary": [
+        {
+            "category": "restaurants",
+            "city": "Jaipur",
+            "id": 3,
+            "info": "Top-rated fine dining",
+            "name": "The Spice Route",
+            "rating": 4.8,
+            "type": "restaurant"
+        },
+        {
+            "category": "hotels",
+            "city": "Jaipur",
+            "id": 2,
+            "info": "Boutique heritage property",
+            "name": "Heritage Haveli",
+            "rating": 4.7,
+            "type": "hotel"
+        },
+        {
+            "category": "transport",
+            "city": "Jaipur",
+            "id": 2,
+            "info": "Convenient metro",
+            "name": "Pink Metro",
+            "rating": 4.4,
+            "transport_type": "metro",
+            "type": "transport"
+        },
+        {
+            "category": "events",
+            "city": "Jaipur",
+            "id": 3,
+            "info": "Sunrise balloon flights",
+            "name": "Hot Air Balloon",
+            "rating": 4.9,
+            "start_time": "05:30",
+            "type": "event"
+        }
+    ],
+    "rating": 4.0,
+    "comment": "Very good",
+    "timestamp": "2025-10-21T17:53:58.567709"
+}
