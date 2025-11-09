@@ -1,10 +1,11 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-WORKDIR C:/Users/ASUS/Documents/Study/Distributed_Computing/EXP_8_2/coordinator
+WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+EXPOSE 5000
 CMD ["python", "coordinator.py"]
