@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import random
 import socket
-
+import psycopg2
 
 # --- Replication manager (inspired by your example) ---
 class TravelDBReplicationManager:
