@@ -44,7 +44,7 @@ export default function Home() {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Plane className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-foreground">TravelPlan</span>
+            <span className="text-xl font-bold text-foreground">PlanMyTrip</span>
           </Link>
 
           <div className="flex items-center gap-4">

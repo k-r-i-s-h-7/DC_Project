@@ -46,18 +46,33 @@ function ResultsContent() {
     if (!city) return
 
     const fetchResults = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch(`/api/plan?city=${encodeURIComponent(city)}`)
-        const data = await response.json()
-        setItinerary(data.itinerary || [])
-      } catch (err) {
-        setError("Failed to fetch results. Please try again.")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
+      console.log("Calling:", `http://127.0.0.1/plan?city=${city}`);
+
+const response = await fetch(`http://127.0.0.1/plan?city=${encodeURIComponent(city)}`, {
+  cache: "no-store",
+});
+
+console.log("Status:", response.status);
+
+const data = await response.json();
+console.log("DATA RECEIVED:", data);
+
+setItinerary(data.itinerary || []);
+  try {
+    setLoading(true)
+    const response = await fetch(`http://127.0.0.1/plan?city=${encodeURIComponent(city)}`, {
+  cache: "no-store",
+});
+    const data = await response.json()
+    setItinerary(data.itinerary || [])
+  } catch (err) {
+    setError("Failed to fetch results. Please try again.")
+    console.error(err)
+  } finally {
+    setLoading(false)
+  }
+}
+
 
     fetchResults()
   }, [city])
