@@ -1,20 +1,20 @@
-# travel_worker_with_replication.py
-from confluent_kafka import Consumer, Producer
-import json
-import sqlite3
 import os
-import time
-from concurrent.futures import ThreadPoolExecutor
-import threading
+import json
 import random
 import socket
-import psycopg2
+import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from confluent_kafka import Consumer, Producer
 
-# --- Replication manager (inspired by your example) ---
+
+# ---------------------------------------------------------
+#   TRAVEL DB REPLICATION MANAGER  (unchanged, cleaned)
+# ---------------------------------------------------------
 class TravelDBReplicationManager:
     def __init__(self):
-        self.databases = []        # list[str]
-        self.crashed_nodes = set() # set[str]
+        self.databases = []
+        self.crashed_nodes = set()
         self.lock = threading.Lock()
 
     def add_node(self):
@@ -24,7 +24,6 @@ class TravelDBReplicationManager:
         conn = sqlite3.connect(db_name)
         cursor = conn.cursor()
 
-        # Create hotels table (plus other tables optionally)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS hotels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +33,7 @@ class TravelDBReplicationManager:
                 info TEXT
             )
         """)
-        # Optional: create other tables the original example had
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS restaurants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +42,7 @@ class TravelDBReplicationManager:
                 price INTEGER
             )
         """)
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transport_routes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +52,7 @@ class TravelDBReplicationManager:
                 price INTEGER NOT NULL
             )
         """)
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +62,7 @@ class TravelDBReplicationManager:
                 category TEXT NOT NULL
             )
         """)
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS attractions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +78,6 @@ class TravelDBReplicationManager:
         return db_name
 
     def initialize_data(self):
-        """Populate initial data across all nodes (hotels + example data)."""
         hotels = [
             ("Hotel A", "Delhi", 4.5, "Luxury hotel"),
             ("Hotel B", "Delhi", 4.2, "Comfortable stay"),
@@ -87,127 +88,157 @@ class TravelDBReplicationManager:
             ("Hotel G", "Pune", 4.1, "Cozy & affordable")
         ]
 
-        # example other datasets (shortened)
         restaurants = [
             ("XYZ Cafe", "Mumbai", 200),
             ("ABC Diner", "Delhi", 500),
             ("Wada Pav Express", "Pune", 50)
         ]
+
         transport_routes = [
             ("Mumbai", "Delhi", "IndiGo", 3500),
             ("Delhi", "Bangalore", "IndiGo", 5000)
         ]
+
         events = [
             ("Bollywood Nights", "Mumbai", "2025-09-15", "Concert"),
             ("Tech Expo", "Bangalore", "2025-07-18", "Exhibition")
         ]
+
         attractions = [
             ("Gateway of India", "Mumbai", "Historical Monument"),
             ("Cubbon Park", "Bangalore", "Nature")
         ]
 
-        for db in list(self.databases):
+        for db in self.databases:
             if db in self.crashed_nodes:
                 continue
+
             conn = sqlite3.connect(db)
             cursor = conn.cursor()
-            # Clear existing hotels to avoid duplicates on re-run
-            cursor.execute("DELETE FROM hotels")
-            cursor.executemany("INSERT INTO hotels (name, city, rating, info) VALUES (?, ?, ?, ?)", hotels)
 
-            # optional other data
+            cursor.execute("DELETE FROM hotels")
+            cursor.executemany(
+                "INSERT INTO hotels (name, city, rating, info) VALUES (?, ?, ?, ?)",
+                hotels
+            )
+
             cursor.execute("DELETE FROM restaurants")
-            cursor.executemany("INSERT INTO restaurants (name, location, price) VALUES (?, ?, ?)", restaurants)
+            cursor.executemany(
+                "INSERT INTO restaurants (name, location, price) VALUES (?, ?, ?)",
+                restaurants
+            )
 
             cursor.execute("DELETE FROM transport_routes")
-            cursor.executemany("INSERT INTO transport_routes (start_location, end_location, airline, price) VALUES (?, ?, ?, ?)", transport_routes)
+            cursor.executemany(
+                "INSERT INTO transport_routes (start_location, end_location, airline, price) VALUES (?, ?, ?, ?)",
+                transport_routes
+            )
 
             cursor.execute("DELETE FROM events")
-            cursor.executemany("INSERT INTO events (name, location, date, category) VALUES (?, ?, ?, ?)", events)
+            cursor.executemany(
+                "INSERT INTO events (name, location, date, category) VALUES (?, ?, ?, ?)",
+                events
+            )
 
             cursor.execute("DELETE FROM attractions")
-            cursor.executemany("INSERT INTO attractions (name, location, category) VALUES (?, ?, ?)", attractions)
+            cursor.executemany(
+                "INSERT INTO attractions (name, location, category) VALUES (?, ?, ?)",
+                attractions
+            )
 
             conn.commit()
             conn.close()
 
-        print("[✓] Initial data replicated across all nodes")
+        print("[✓] Initial data replicated across nodes")
 
-    def query_by_location(self, table_name, location, limit=5):
-        """Read from a random healthy node. Simulate random node crash occasionally."""
+    def query_by_location(self, table, location, limit=5):
         if not self.databases:
             return {"error": "No nodes available"}
 
-        # simulate crash with small probability
-        if random.random() < 0.05 and self.databases:
+        if random.random() < 0.05:  # simulate node crash
             healthy = [db for db in self.databases if db not in self.crashed_nodes]
             if healthy:
                 crashed = random.choice(healthy)
                 self.crashed_nodes.add(crashed)
-                print(f"[!] Simulated node crash: {crashed}")
+                print(f"[!] Simulated crash: {crashed}")
 
         attempts = 0
         while attempts < len(self.databases):
-            db_choice = random.choice(self.databases)
-            if db_choice in self.crashed_nodes:
+            node = random.choice(self.databases)
+            if node in self.crashed_nodes:
                 attempts += 1
                 continue
-            return self._execute_location_query(db_choice, table_name, location, limit)
-        return {"error": "All nodes crashed! No data available."}
+            return self._execute_query(node, table, location, limit)
 
-    def _execute_location_query(self, db, table_name, location, limit=5):
+        return {"error": "All nodes crashed"}
+
+    def _execute_query(self, db, table, location, limit=5):
         try:
             conn = sqlite3.connect(db)
             cursor = conn.cursor()
 
-            if table_name == "hotels":
-                # read top hotels by rating
-                cursor.execute("SELECT id, name, city, rating, info FROM hotels WHERE city=? ORDER BY rating DESC LIMIT ?", (location, limit))
-                columns = ["id", "name", "city", "rating", "info"]
-            elif table_name == "restaurants":
-                cursor.execute("SELECT name, location, price FROM restaurants WHERE location=?", (location,))
-                columns = ["name", "location", "price"]
-            elif table_name == "events":
-                cursor.execute("SELECT name, location, date, category FROM events WHERE location=?", (location,))
-                columns = ["name", "location", "date", "category"]
-            elif table_name == "attractions":
-                cursor.execute("SELECT name, location, category FROM attractions WHERE location=?", (location,))
-                columns = ["name", "location", "category"]
-            elif table_name == "transport":
-                cursor.execute("SELECT start_location, end_location, airline, price FROM transport_routes WHERE start_location=? OR end_location=?", (location, location))
-                columns = ["start_location", "end_location", "airline", "price"]
+            queries = {
+                "hotels": (
+                    "SELECT id, name, city, rating, info FROM hotels WHERE city=? ORDER BY rating DESC LIMIT ?",
+                    ["id", "name", "city", "rating", "info"]
+                ),
+                "restaurants": (
+                    "SELECT name, location, price FROM restaurants WHERE location=?",
+                    ["name", "location", "price"]
+                ),
+                "events": (
+                    "SELECT name, location, date, category FROM events WHERE location=?",
+                    ["name", "location", "date", "category"]
+                ),
+                "transport": (
+                    "SELECT start_location, end_location, airline, price FROM transport_routes WHERE start_location=? OR end_location=?",
+                    ["start_location", "end_location", "airline", "price"]
+                )
+            }
+
+            if table not in queries:
+                return {"error": "Invalid table"}
+
+            query, cols = queries[table]
+
+            if table == "transport":
+                cursor.execute(query, (location, location))
             else:
-                conn.close()
-                return {"error": f"Invalid table: {table_name}"}
+                cursor.execute(query, (location,))
 
             rows = cursor.fetchall()
             conn.close()
 
-            results = [dict(zip(columns, row)) for row in rows]
-            print(f"[✓] Read from {db}: Found {len(results)} results for {table_name} in {location}")
-            return {"node": db, "results": results}
+            print(f"[✓] {db} → {len(rows)} rows for {table}")
+
+            return {
+                "node": db,
+                "results": [dict(zip(cols, row)) for row in rows]
+            }
+
         except Exception as e:
             return {"error": str(e)}
 
-    def replicate_node(self, target_db):
-        """Create a full backup copy of target_db as a new node."""
-        if target_db not in self.databases:
-            raise ValueError(f"Node {target_db} does not exist")
-        if target_db in self.crashed_nodes:
-            raise ValueError(f"Cannot replicate crashed node {target_db}")
+    def replicate_node(self, source_db):
+        if source_db not in self.databases:
+            raise ValueError("Node does not exist")
+        if source_db in self.crashed_nodes:
+            raise ValueError("Cannot replicate crashed node")
 
-        new_number = len(self.databases) + 1
-        new_node = f"travel_node_{new_number}.sqlite"
+        new_node = f"travel_node_{len(self.databases) + 1}.sqlite"
 
-        source_conn = sqlite3.connect(target_db)
-        dest_conn = sqlite3.connect(new_node)
-        with source_conn:
-            source_conn.backup(dest_conn)
-        source_conn.close()
-        dest_conn.close()
+        src = sqlite3.connect(source_db)
+        dst = sqlite3.connect(new_node)
+
+        with src:
+            src.backup(dst)
+
+        src.close()
+        dst.close()
 
         self.databases.append(new_node)
-        print(f"[✓] Node {target_db} replicated to {new_node}")
+        print(f"[✓] Replicated {source_db} → {new_node}")
+
         return new_node
 
     def get_status(self):
@@ -215,129 +246,184 @@ class TravelDBReplicationManager:
             "total_nodes": len(self.databases),
             "active_nodes": len([db for db in self.databases if db not in self.crashed_nodes]),
             "crashed_nodes": list(self.crashed_nodes),
-            "node_list": self.databases
+            "nodes": self.databases
         }
 
-# --- instantiate and prepare nodes ---
+
+# ---------------------------------------------------------
+#   CREATE REPLICATION MANAGER + SEED NODES
+# ---------------------------------------------------------
 rm = TravelDBReplicationManager()
 rm.add_node()
 rm.add_node()
 rm.add_node()
 rm.initialize_data()
 
-# Optional: small admin TCP server (copy/paste from your example)
-HOST = '127.0.0.1'
+
+# ---------------------------------------------------------
+#   ADMIN TCP SERVER
+# ---------------------------------------------------------
+HOST = "127.0.0.1"
 PORT = 65432
 
 def handle_client(conn, addr):
     print(f"[+] Admin connected: {addr}")
+
     try:
         while True:
             data = conn.recv(4096)
             if not data:
                 break
-            request = json.loads(data.decode())
-            action = request.get("action")
-            response = {"status": "error", "result": None}
+
+            req = json.loads(data.decode())
+            action = req.get("action")
+            response = {"status": "error"}
+
             try:
                 if action == "query":
-                    table_name = request.get("table")
-                    location = request.get("location")
-                    limit = request.get("limit", 5)
-                    result = rm.query_by_location(table_name, location, limit)
-                    response = {"status": "success", "result": result}
-                elif action == "replicate_node":
-                    target_db = request.get("target_db")
-                    new_node = rm.replicate_node(target_db)
-                    response = {"status": "success", "result": f"Node replicated to {new_node}"}
+                    table = req["table"]
+                    location = req["location"]
+                    limit = req.get("limit", 5)
+                    response = {"status": "success", "result": rm.query_by_location(table, location, limit)}
+
                 elif action == "status":
-                    status = rm.get_status()
-                    response = {"status": "success", "result": status}
+                    response = {"status": "success", "result": rm.get_status()}
+
+                elif action == "replicate":
+                    new_node = rm.replicate_node(req["node"])
+                    response = {"status": "success", "result": new_node}
+
                 else:
                     response = {"status": "error", "result": "Invalid action"}
+
             except Exception as e:
                 response = {"status": "error", "result": str(e)}
+
             conn.sendall(json.dumps(response).encode())
-    except Exception as e:
-        print(f"[!] Admin connection error: {e}")
+
     finally:
         conn.close()
         print(f"[-] Admin disconnected: {addr}")
 
+
 def start_admin_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server = socket.socket()
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
     server.listen()
-    print(f"[+] Travel DB Replication Admin listening on {HOST}:{PORT}")
+    print(f"[+] Admin server listening on {HOST}:{PORT}")
+
     while True:
         conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
-        thread.start()
+        threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
-# start admin server in background thread (daemon)
-admin_thread = threading.Thread(target=start_admin_server, daemon=True)
-admin_thread.start()
 
-# --- Kafka worker (multithreaded) using the replication manager ---
-KAFKA_BROKER = "kafka:9092"
-REQUEST_TOPIC = "travel_requests"
-RESPONSE_TOPIC = "travel_responses"
+threading.Thread(target=start_admin_server, daemon=True).start()
+
+
+# ---------------------------------------------------------
+#   GENERIC KAFKA WORKER (HOTELS / RESTAURANTS / EVENTS / TRANSPORT)
+# ---------------------------------------------------------
+WORKER_TYPE = os.getenv("WORKER_TYPE", "hotels")
+
+TOPICS = {
+    "hotels": ("travel_hotels_requests", "travel_hotels_responses"),
+    "restaurants": ("travel_restaurants_requests", "travel_restaurants_responses"),
+    "events": ("travel_events_requests", "travel_events_responses"),
+    "transport": ("travel_transport_requests", "travel_transport_responses")
+}
+
+REQ_TOPIC, RES_TOPIC = TOPICS[WORKER_TYPE]
 
 consumer = Consumer({
-    'bootstrap.servers': KAFKA_BROKER,
-    'group.id': 'hotels_group',
-    'auto.offset.reset': 'earliest'
+    "bootstrap.servers": "kafka:9092",
+    "group.id": f"{WORKER_TYPE}_group",
+    "auto.offset.reset": "earliest"
 })
-consumer.subscribe([REQUEST_TOPIC])
-producer = Producer({'bootstrap.servers': KAFKA_BROKER})
 
-def process_message(msg):
-    try:
-        data = json.loads(msg.value().decode('utf-8'))
-        city = data.get("city", "")
-        limit = data.get("limit", 5)
-        print(f"[Thread] Received request for city={city} limit={limit}")
-        result = rm.query_by_location("hotels", city, limit)
-        if "results" in result:
-            # map manager's results into your original response format (type: hotel)
-            hotels = []
-            for r in result["results"]:
-                hotels.append({
-                    "id": r.get("id"),
-                    "name": r.get("name"),
-                    "city": r.get("city"),
-                    "rating": r.get("rating"),
-                    "info": r.get("info"),
-                    "type": "hotel"
-                })
-            response = {"source": "hotels", "results": hotels}
-        else:
-            # error from manager
-            response = {"source": "hotels", "error": result.get("error", "unknown")}
+producer = Producer({"bootstrap.servers": "kafka:9092"})
 
-        producer.produce(RESPONSE_TOPIC, json.dumps(response).encode('utf-8'))
-        producer.flush()
-        print(f"[Thread] Sent response for city={city}")
-
-    except Exception as e:
-        print("Worker exception:", e)
-
-print("Hotels worker running with multithreading + multi-node replication... Waiting for Kafka messages...")
+consumer.subscribe([REQ_TOPIC])
 
 executor = ThreadPoolExecutor(max_workers=5)
 
-try:
-    while True:
-        msg = consumer.poll(1.0)
-        if msg is None:
-            continue
-        if msg.error():
-            print("Kafka Error:", msg.error())
-            continue
+
+def format_results(table, results):
+    formatted = []
+
+    if table == "hotels":
+        for r in results:
+            formatted.append({
+                "id": r["id"],
+                "name": r["name"],
+                "city": r["city"],
+                "rating": r["rating"],
+                "info": r["info"],
+                "type": "hotel"
+            })
+
+    if table == "restaurants":
+        for r in results:
+            formatted.append({
+                "name": r["name"],
+                "location": r["location"],
+                "price": r["price"],
+                "type": "restaurant"
+            })
+
+    if table == "events":
+        for r in results:
+            formatted.append({
+                "name": r["name"],
+                "location": r["location"],
+                "date": r["date"],
+                "category": r["category"],
+                "type": "event"
+            })
+
+    if table == "transport":
+        for r in results:
+            formatted.append({
+                "start": r["start_location"],
+                "end": r["end_location"],
+                "airline": r["airline"],
+                "price": r["price"],
+                "type": "transport"
+            })
+
+    return formatted
+
+
+def process_message(msg):
+    try:
+        req = json.loads(msg.value().decode())
+        location = req.get("location")
+        limit = req.get("limit", 5)
+
+        print(f"[{WORKER_TYPE}] request → {location}")
+
+        db_result = rm.query_by_location(WORKER_TYPE, location, limit)
+
+        if "results" in db_result:
+            response = {
+                "source": WORKER_TYPE,
+                "results": format_results(WORKER_TYPE, db_result["results"])
+            }
+        else:
+            response = {"source": WORKER_TYPE, "error": db_result.get("error")}
+
+        producer.produce(RES_TOPIC, json.dumps(response).encode())
+        producer.flush()
+
+        print(f"[{WORKER_TYPE}] response sent")
+
+    except Exception as e:
+        print(f"[{WORKER_TYPE}] worker error: {e}")
+
+
+print(f"[✓] {WORKER_TYPE.upper()} WORKER ONLINE → {REQ_TOPIC}")
+
+while True:
+    msg = consumer.poll(1)
+    if msg and not msg.error():
         executor.submit(process_message, msg)
-except KeyboardInterrupt:
-    print("Shutting down gracefully...")
-finally:
-    consumer.close()
-    executor.shutdown(wait=True)
