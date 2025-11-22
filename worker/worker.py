@@ -155,7 +155,7 @@ class TravelDBReplicationManager:
         if not self.databases:
             return {"error": "No nodes available"}
 
-        if random.random() < 0.05:  # simulate node crash
+        if random.random() < 0.00:  # simulate node crash
             healthy = [db for db in self.databases if db not in self.crashed_nodes]
             if healthy:
                 crashed = random.choice(healthy)
