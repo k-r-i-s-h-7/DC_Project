@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import random
 import socket
-import psycopg2
+
 
 # --- Replication manager (inspired by your example) ---
 class TravelDBReplicationManager:
@@ -139,7 +139,7 @@ class TravelDBReplicationManager:
             return {"error": "No nodes available"}
 
         # simulate crash with small probability
-        if random.random() < 0.05 and self.databases:
+        if random.random() < 0.00005 and self.databases:
             healthy = [db for db in self.databases if db not in self.crashed_nodes]
             if healthy:
                 crashed = random.choice(healthy)
